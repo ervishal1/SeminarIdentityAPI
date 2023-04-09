@@ -20,17 +20,21 @@ namespace Identity1.Services
         private readonly RoleManager<ApplicationRole> _roleManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly IMailService _mailService;
+        private readonly IHttpContextAccessor _httpContextAccessor;
+
         public IdentityUserServices(
             UserManager<ApplicationUser> userManager,
             RoleManager<ApplicationRole> roleManager,
             SignInManager<ApplicationUser> signInManager,
-            IMailService mailService
+            IMailService mailService,
+            IHttpContextAccessor httpContextAccessor
             )
         {
             _userManager = userManager;
             _roleManager = roleManager;
             _signInManager = signInManager;
             _mailService = mailService;
+            _httpContextAccessor = httpContextAccessor;
         }
 
         public async Task<IdentityResult> AddUser(User user)
@@ -64,6 +68,18 @@ namespace Identity1.Services
         {
             string line = string.Empty;
             FileStream fileStream = new FileStream(Path.Combine("template", "EmailConfirmation.txt"), FileMode.Open);
+            using (StreamReader reader = new StreamReader(fileStream))
+            {
+                line = reader.ReadToEnd();
+            }
+
+            return line;
+        }
+
+        private string GetEmailTemplate(string fileName)
+        {
+            string line = string.Empty;
+            FileStream fileStream = new FileStream(Path.Combine("template", fileName), FileMode.Open);
             using (StreamReader reader = new StreamReader(fileStream))
             {
                 line = reader.ReadToEnd();
@@ -172,6 +188,57 @@ namespace Identity1.Services
         public  IList<string> GetAllRoles()
         {
             return _roleManager.Roles.Select(x=> x.Name).ToList();
+        }
+
+        public async Task<bool> ResetPassowrdTokenGen(string email)
+        {
+            try
+            {
+                ApplicationUser appUser = await _userManager.FindByEmailAsync(email);
+                var code = await _userManager.GeneratePasswordResetTokenAsync(appUser);
+                code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
+
+                var confirmationlink = "https://localhost:3000/auth/ResetPassword?token=" + code + "&email=" + appUser.Email;
+                string template = GetEmailTemplate("ResetPassowrdToken.txt");
+                var message = new MailRequest();
+                message.ToEmail = appUser.Email;
+                message.Subject = "Reset Passowrd Request";
+                message.Body = template.Replace("{0}", HtmlEncoder.Default.Encode(confirmationlink));
+
+                await _mailService.SendEmailAsync(message);
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+           
+        }
+
+        public async Task<IdentityResult> ResetPassowrdConfirm(ResetPasswordRequest req)
+        {
+            ApplicationUser user = await _userManager.FindByEmailAsync(req.Email);
+            if (user != null)
+            {
+                req.Token = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(req.Token));
+                return await _userManager.ResetPasswordAsync(user, req.Token, req.NewPassword);
+            }
+            else
+            {
+                return IdentityResult.Failed();
+            }
+        }
+
+        public async Task<IdentityResult> ChangePasswordAsync(ChangePassowrdRequest request)
+        {
+            var httpUser = _httpContextAccessor.HttpContext?.User;
+            if(httpUser != null)
+            {
+               var user = await _userManager.GetUserAsync(httpUser);
+               var result = await _userManager.ChangePasswordAsync(user, request.OldPassword, request.NewPassword);
+                return result;
+            }
+            return IdentityResult.Failed();
         }
     }
 }

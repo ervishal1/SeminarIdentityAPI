@@ -190,5 +190,47 @@ namespace Identity1.Controllers
             }
   
         }
+
+        [HttpPost]
+        [Route("user/reset-password")]
+        public async Task<IActionResult> ResetPassword(string email)
+        {
+            try
+            {
+                var result = await _userService.ResetPassowrdTokenGen(email);
+                if (result)
+                    return Ok("Reset Email Send!");
+                else
+                    return BadRequest("Oops Something Wrong!");
+            }
+            catch (Exception ex)
+            {
+                StatusCode(StatusCodes.Status500InternalServerError, ex.Message);
+                throw;
+            }
+        }
+
+        [HttpPost]
+        [Route("user/reset-password-confirm")]
+        public async Task<IActionResult> ResetPasswordConfirmToken(ResetPasswordRequest request)
+        {
+            try
+            {
+                var result = await _userService.ResetPassowrdConfirm(request);
+                if (result.Succeeded)
+                {
+                    return StatusCode(StatusCodes.Status200OK, new { message = "Password Reset Successfully!" });
+                }
+                else
+                {
+                    return BadRequest(result.Errors);
+                }
+            }
+            catch (Exception ex)
+            {
+                StatusCode(StatusCodes.Status500InternalServerError, ex.Message);
+                throw;
+            }
+        }
     }
 }

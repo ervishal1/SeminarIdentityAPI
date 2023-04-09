@@ -45,15 +45,12 @@ namespace Identity1.Services
             var code = await _userManager.GenerateEmailConfirmationTokenAsync(appUser);
             code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
 
-            //await _emailSender.SendEmailAsync(Input.Email, "Confirm your email",
-            //    $"Please confirm your account by <a href='{HtmlEncoder.Default.Encode(callbackUrl)}'>clicking here</a>.");
-
             var confirmationlink = "https://localhost:7022/api/auth/ConfirmEmailLink?token=" + code + "&email=" + appUser.Email;
-
+            string template = GetConfirmEmailTemplate();
             var message = new MailRequest();
             message.ToEmail = appUser.Email;
             message.Subject = "Confirm your email";
-            message.Body = $"Please confirm your account by <a href='{HtmlEncoder.Default.Encode(confirmationlink)}'>clicking here</a>.";
+            message.Body = template.Replace("{0}", HtmlEncoder.Default.Encode(confirmationlink));
 
 
             await _mailService.SendEmailAsync(message);
@@ -61,6 +58,18 @@ namespace Identity1.Services
                 _userManager.AddToRoleAsync(appUser, "User").Wait();
             }
             return result;
+        }
+
+        private string GetConfirmEmailTemplate()
+        {
+            string line = string.Empty;
+            FileStream fileStream = new FileStream(Path.Combine("template", "EmailConfirmation.txt"), FileMode.Open);
+            using (StreamReader reader = new StreamReader(fileStream))
+            {
+                line = reader.ReadToEnd();
+            }
+
+            return line;
         }
 
         public async Task<IdentityResult> ConfirmEmail(string token, string email)

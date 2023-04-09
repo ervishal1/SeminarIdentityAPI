@@ -9,6 +9,7 @@ namespace Identity1.Settings
     public interface IMailService
     {
         Task SendEmailAsync(MailRequest mailRequest);
+        string readFile();
     }
 
     public class MailService : IMailService
@@ -25,7 +26,6 @@ namespace Identity1.Settings
         {
             try
             {
-
             var email = new MimeMessage();
             email.Sender = MailboxAddress.Parse(_mailSettings.Mail);
             email.To.Add(MailboxAddress.Parse(mailRequest.ToEmail));
@@ -59,6 +59,17 @@ namespace Identity1.Settings
             {
                 throw;
             }
+        }
+
+        public string readFile()
+        {
+            string line = string.Empty;
+            FileStream fileStream = new FileStream(Path.Combine("template","temp.txt"), FileMode.Open);
+            using (StreamReader reader = new StreamReader(fileStream))
+            {
+                line = reader.ReadToEnd();
+            }
+            return line;
         }
     }
 }

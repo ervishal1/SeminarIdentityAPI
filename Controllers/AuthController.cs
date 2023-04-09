@@ -232,5 +232,25 @@ namespace Identity1.Controllers
                 throw;
             }
         }
+
+        [HttpPost]
+        [Route("change-password")]
+        [Authorize]
+        public async Task<IActionResult> ChangePassword(ChangePassowrdRequest request)
+        {
+            try
+            {
+                var result = await _userService.ChangePasswordAsync(request);
+                if (result.Succeeded)
+                    return Ok("Password Changed Succeesfully!");
+                else
+                    return BadRequest(result.Errors);
+            }
+            catch (Exception ex)
+            {
+                StatusCode(StatusCodes.Status500InternalServerError, ex.Message);
+                throw;
+            }
+        }
     }
 }

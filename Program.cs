@@ -22,7 +22,8 @@ var mongoDbSettings = builder.Configuration.GetSection(nameof(MongoDbConfig)).Ge
 builder.Services.Configure<MongoDbConfig>(
     builder.Configuration.GetSection(nameof(MongoDbConfig)));
 
-builder.Services.AddIdentity<ApplicationUser, ApplicationRole>().AddMongoDbStores<ApplicationUser, ApplicationRole, Guid>(
+builder.Services.AddIdentity<ApplicationUser, ApplicationRole>()
+    .AddMongoDbStores<ApplicationUser, ApplicationRole, Guid>(
     mongoDbSettings.ConnectionString,
     mongoDbSettings.Name
     ).AddRoles<ApplicationRole>().AddDefaultTokenProviders();

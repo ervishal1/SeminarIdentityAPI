@@ -121,11 +121,62 @@ namespace Identity1.Services
             bool isNotEmailConfirmed = await _userManager.IsEmailConfirmedAsync(user); 
             if(user != null && isNotEmailConfirmed)
             {
-                SignInResult result = await _signInManager.PasswordSignInAsync(user, request.Password,true,false);
+                SignInResult result = await _signInManager.PasswordSignInAsync(user, request.Password,request.RememberMe,false);
                 return result;
             }
             return SignInResult.Failed;
 
+        }
+
+        public async Task<int> SendTwoStepCode(string email,bool rememberMe)
+        {
+            try
+            {
+                var user = await _userManager.FindByEmailAsync(email);
+                if (user == null)
+                {
+                    return StatusCodes.Status400BadRequest;
+                }
+                var providers = await _userManager.GetValidTwoFactorProvidersAsync(user);
+                if (!providers.Contains("Email"))
+                {
+                    return StatusCodes.Status400BadRequest;
+                }
+                var token = await _userManager.GenerateTwoFactorTokenAsync(user, "Email");
+                string template = GetEmailTemplate("OtpTemplate.txt");
+
+                var message = new MailRequest();
+                message.ToEmail = email;
+                message.Subject = "Verification Code";
+                message.Body = template.Replace("{0}", HtmlEncoder.Default.Encode(token));
+
+                await _mailService.SendEmailAsync(message);
+                return StatusCodes.Status200OK;
+            }
+            catch (Exception ex)
+            {
+                return StatusCodes.Status500InternalServerError;
+                throw;
+            }
+        }
+
+        public async Task<SignInResult> VerifyTwoStepCode(TwoStepModel model)
+        {
+            try
+            {
+                var user = await _signInManager.GetTwoFactorAuthenticationUserAsync();
+                if (user == null)
+                {
+                    return SignInResult.NotAllowed;
+                }
+                var result = await _signInManager.TwoFactorSignInAsync("Email", model.TwoFactorCode, model.RememberMe, rememberClient: true);
+                return result;
+            }
+            catch (Exception ex)
+            {
+                return SignInResult.Failed;
+                throw;
+            }
         }
 
         public async Task LogoutAsync()

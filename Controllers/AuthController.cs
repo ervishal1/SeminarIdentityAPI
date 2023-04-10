@@ -73,23 +73,75 @@ namespace Identity1.Controllers
         [Route("login")]
         public async Task<IActionResult> Login([FromForm]IdentityLoginRequestViewModal request)
         {
-            //var valid = await validate.ValidateAsync(request);
-            //if (valid.IsValid)
-            //{
-                var result = await _userService.LoginUserAsync(request);
-                if (result.Succeeded)
-                {
-                    return StatusCode(StatusCodes.Status200OK, new { message = "User LogedIn!" });
-                }
-                else
-                {
-                    return BadRequest(result.IsNotAllowed);
-                }
-            //}
-            //else
-            //{
-            //    return BadRequest(valid.Errors);
-            //}
+            
+            var result = await _userService.LoginUserAsync(request);
+            if (result.Succeeded)
+            {
+                return StatusCode(StatusCodes.Status200OK, new { message = "User LogedIn!" });
+            }
+            else if (result.RequiresTwoFactor)
+            {
+                return RedirectPermanent($"http://localhost:3000/Account/LoginTwoStep?email={request.Email}&rememberMe={request.RememberMe}");
+            }
+            else
+            {
+                return BadRequest(result.IsNotAllowed);
+            }
+           
+        }
+
+        /// <summary>
+        /// Cron job From Front End Call When Page LoginTwoStep Rendered
+        /// </summary>
+        /// <param name="Email"></param>
+        /// <param name="RememberMe"></param>
+        /// <returns></returns>
+        [HttpGet]
+        [AllowAnonymous]
+        [Route("loginTwoStep")]
+        public async Task<IActionResult> LoginTwoStepSendMail(string Email,bool RememberMe)
+        {
+            try
+            {
+                var result = await _userService.SendTwoStepCode(Email,RememberMe);
+                if(result == 200)
+                    return Ok(new {Email = Email, RememberMe = RememberMe});
+                if (result == StatusCodes.Status400BadRequest)
+                    return BadRequest("Not Authenticated!");
+                if (result == StatusCodes.Status500InternalServerError) ;
+                    return StatusCode(StatusCodes.Status500InternalServerError);
+            }
+            catch (Exception)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError);
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Verify LoginTwoStep Token
+        /// </summary>
+        /// <param name="modal"></param>
+        /// <returns></returns>
+        [HttpPost]
+        [AllowAnonymous]
+        [Route("loginTwoStep")]
+        public async Task<IActionResult> LoginTwoStep([FromBody]TwoStepModel modal)
+        {
+            try
+            {
+                var result = await _userService.VerifyTwoStepCode(modal);
+                if(result.Succeeded)
+                    return Ok("User Verified Successfully!");
+                if (result.IsNotAllowed)
+                    return BadRequest("User is Not Allowed!");
+                return StatusCode(StatusCodes.Status401Unauthorized);
+            }
+            catch (Exception)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError);
+                throw;
+            }
         }
 
         /// <summary>

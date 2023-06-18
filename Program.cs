@@ -39,6 +39,18 @@ builder.Services.Configure<IdentityOptions>(Options =>
     Options.SignIn.RequireConfirmedEmail = true;
 });
 
+//Add Cors Policy
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(name: "AllowOrigin",
+        builder =>
+        {
+            builder.AllowAnyHeader()
+                   .AllowAnyMethod()
+                   .AllowAnyOrigin();
+        });
+});
+
 //Mail Service
 builder.Services.Configure<MailSettings>(builder.Configuration.GetSection("MailSettings"));
 builder.Services.AddTransient<IMailService, MailService>();
@@ -56,6 +68,13 @@ builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
+app.UseCors(builder =>
+{
+    builder
+    .AllowAnyOrigin()
+    .AllowAnyMethod()
+    .AllowAnyHeader();
+});
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {

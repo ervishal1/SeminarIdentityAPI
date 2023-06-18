@@ -81,7 +81,7 @@ namespace Identity1.Controllers
             }
             else if (result.RequiresTwoFactor)
             {
-                return RedirectPermanent($"http://localhost:3000/Account/LoginTwoStep?email={request.Email}&rememberMe={request.RememberMe}");
+                return StatusCode(StatusCodes.Status200OK,new { RequiresTwoFactor = true, redirectUrl = $"http://localhost:3000/Account/LoginTwoStep?email={request.Email}&rememberMe={request.RememberMe}" });
             }
             else
             {

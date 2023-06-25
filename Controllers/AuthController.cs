@@ -2,12 +2,16 @@
 using Identity1.Models;
 using Identity1.Services;
 using Identity1.ViewModels;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Org.BouncyCastle.Asn1.Ocsp;
 using System;
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel;
 
 namespace Identity1.Controllers
 {
@@ -42,23 +46,26 @@ namespace Identity1.Controllers
             }
         }
 
-        [HttpPost]
-        [Route("createrole")]
-        [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> CreateRole([FromForm][Required] string name)
+        /// <summary>
+        /// Confirm Email Address
+        /// </summary>
+        /// <param name="token"></param>
+        /// <param name="email"></param>
+        /// <returns></returns>
+        [HttpGet("[Action]")]
+        public async Task<IActionResult> ConfirmEmailLink(string token, string email)
         {
-            if (String.IsNullOrEmpty(name))
-                return BadRequest();
+            try
+            {
+                var result = await _userService.ConfirmEmail(token, email);
+                return RedirectPermanent($"https://www.google.com/EmailVerified/{email}");
+            }
+            catch (Exception ex)
+            {
+                StatusCode(StatusCodes.Status500InternalServerError, ex.Message);
+                throw;
+            }
 
-            IdentityResult result = await _userService.CreateRole(name);
-            if (result.Succeeded)
-            {
-                return StatusCode(StatusCodes.Status201Created, new { message = "Role Created!" });
-            }
-            else
-            {
-                return BadRequest(result.Errors);
-            }
         }
 
         /// <summary>
@@ -67,7 +74,6 @@ namespace Identity1.Controllers
         /// <param name="request"></param>
         /// <param name="validate"></param>
         /// <returns></returns>
-
         [HttpPost]
         [AllowAnonymous]
         [Route("login")]
@@ -91,6 +97,26 @@ namespace Identity1.Controllers
         }
 
         /// <summary>
+        /// Enable 2FA For User
+        /// </summary>
+        /// <returns></returns>
+        [HttpPut]
+        [Authorize]
+        [Route("enable2fa")]
+        public async Task<IActionResult> Enable2FA()
+        {
+            var result = await _userService.Enable2FA();
+            if (result.Succeeded)
+            {
+                return StatusCode(StatusCodes.Status200OK, new { message = "2FA Enabled", user = User.Identity.Name });
+            }
+            else
+            {
+                return StatusCode(StatusCodes.Status304NotModified, new { message="Something went wrong!", errors = result.Errors });
+            }
+        }
+
+        /// <summary>
         /// Cron job From Front End Call When Page LoginTwoStep Rendered
         /// </summary>
         /// <param name="Email"></param>
@@ -99,7 +125,7 @@ namespace Identity1.Controllers
         [HttpGet]
         [AllowAnonymous]
         [Route("loginTwoStep")]
-        public async Task<IActionResult> LoginTwoStepSendMail(string Email,bool RememberMe)
+        public async Task<IActionResult> LoginTwoStepSendMail([Required]string Email,[DefaultValue(false)]bool RememberMe)
         {
             try
             {
@@ -132,7 +158,7 @@ namespace Identity1.Controllers
             {
                 var result = await _userService.VerifyTwoStepCode(modal);
                 if(result.Succeeded)
-                    return Ok("User Verified Successfully!");
+                    return Ok("User Sign-in Successfully!");
                 if (result.IsNotAllowed)
                     return BadRequest("User is Not Allowed!");
                 return StatusCode(StatusCodes.Status401Unauthorized);
@@ -148,7 +174,6 @@ namespace Identity1.Controllers
         /// User Signout
         /// </summary>
         /// <returns></returns>
-
         [HttpPost]
         [Authorize]
         [Route("logout")]
@@ -159,90 +184,10 @@ namespace Identity1.Controllers
         }
 
         /// <summary>
-        /// Get Users By Its Roles
-        /// </summary>
-        /// <param name="roleType"></param>
-        /// <returns></returns>
-       
-        [HttpGet]
-        [Authorize(Roles = "Admin")]
-        [Route("users")]
-        public async Task<IActionResult> GetUsers(string? roleType)
-        {
-            List<ApplicationUserResponse> users = new();
-            if (!String.IsNullOrEmpty(roleType))
-            {
-               users = await _userService.GetUsersByRole(roleType);
-            }
-            else
-            {
-                users = await _userService.GetAllUsers();  
-            }
-
-            if(users.Count > 0)
-            {
-                return Ok(users);
-            }
-            else
-            {
-                return StatusCode(StatusCodes.Status204NoContent, "No Records!");
-            }
-        }
-
-        /// <summary>
-        /// Assign Role TO UserEmail
+        /// Forgot Password Send Token
         /// </summary>
         /// <param name="email"></param>
-        /// <param name="role"></param>
         /// <returns></returns>
-
-        [HttpPost]
-        [Authorize(Roles = "Admin")]
-        [Route("addrole/{email}")]
-        public async Task<IActionResult> AssignRole([Required] string email,[FromBody] [Required] string role)
-        {
-            try
-            {
-                IdentityResult result = await _userService.AssignRoleToUser(email, role);
-                if (result.Succeeded)
-                {
-                    return StatusCode(StatusCodes.Status200OK, new { message = "Role Assigned!" });
-                }
-                else
-                {
-                    return BadRequest(result.Errors);
-                }
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(StatusCodes.Status500InternalServerError, ex.Message);
-            }
-        }
-
-        /// <summary>
-        /// Confirm Email Address
-        /// </summary>
-        /// <param name="token"></param>
-        /// <param name="email"></param>
-        /// <returns></returns>
-       
-        [HttpGet("[Action]")]
-        //[Route("ConfirmEmailLink{token}{email}")]
-        public async Task<IActionResult> ConfirmEmailLink(string token, string email)
-        {
-            try
-            {
-                var result = await _userService.ConfirmEmail(token, email);
-                return RedirectPermanent($"https://www.google.com/EmailVerified/{email}");
-            }
-            catch (Exception ex)
-            {
-                StatusCode(StatusCodes.Status500InternalServerError,ex.Message);
-                throw;
-            }
-  
-        }
-
         [HttpPost]
         [Route("user/reset-password")]
         public async Task<IActionResult> ResetPassword(string email)
@@ -262,6 +207,11 @@ namespace Identity1.Controllers
             }
         }
 
+        /// <summary>
+        /// Forgot Password Request With Token and New Password
+        /// </summary>
+        /// <param name="request"></param>
+        /// <returns></returns>
         [HttpPost]
         [Route("user/reset-password-confirm")]
         public async Task<IActionResult> ResetPasswordConfirmToken(ResetPasswordRequest request)
@@ -285,6 +235,11 @@ namespace Identity1.Controllers
             }
         }
 
+        /// <summary>
+        /// Change Password Request
+        /// </summary>
+        /// <param name="request"></param>
+        /// <returns></returns>
         [HttpPost]
         [Route("change-password")]
         [Authorize]
@@ -302,6 +257,110 @@ namespace Identity1.Controllers
             {
                 StatusCode(StatusCodes.Status500InternalServerError, ex.Message);
                 throw;
+            }
+        }
+
+        /// <summary>
+        /// Get Current User Details
+        /// </summary>
+        /// <returns></returns>
+        [HttpGet]
+        [Route("me")]
+        [Authorize]
+        public async Task<IActionResult> getMe()
+        {
+            try
+            {
+                var result = await _userService.GetMeAsync();
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Get Users By Its Roles
+        /// </summary>
+        /// <param name="roleType"></param>
+        /// <returns></returns>
+        [HttpGet]
+        [Authorize(Roles = "Admin")]
+        
+        [Route("users")]
+        public async Task<IActionResult> GetUsers(string? roleType)
+        {
+            List<ApplicationUserResponse> users = new();
+            if (!String.IsNullOrEmpty(roleType))
+            {
+                users = await _userService.GetUsersByRole(roleType);
+            }
+            else
+            {
+                users = await _userService.GetAllUsers();
+            }
+
+            if (users.Count > 0)
+            {
+                return Ok(users);
+            }
+            else
+            {
+                return StatusCode(StatusCodes.Status204NoContent, "No Records!");
+            }
+        }
+
+        /// <summary>
+        /// Assign Role To UserEmail
+        /// </summary>
+        /// <param name="email"></param>
+        /// <param name="role"></param>
+        /// <returns></returns>
+        [HttpPost]
+        [Authorize(Roles = "Admin")]
+        [Route("addrole/{email}")]
+        public async Task<IActionResult> AssignRole([Required] string email, [FromBody][Required] string role)
+        {
+            try
+            {
+                IdentityResult result = await _userService.AssignRoleToUser(email, role);
+                if (result.Succeeded)
+                {
+                    return StatusCode(StatusCodes.Status200OK, new { message = "Role Assigned!" });
+                }
+                else
+                {
+                    return BadRequest(result.Errors);
+                }
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Admin have an access to create new role
+        /// </summary>
+        /// <param name="name"></param>
+        /// <returns></returns>
+        [HttpPost]
+        [Route("createrole")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> CreateRole([FromForm][Required] string name)
+        {
+            if (String.IsNullOrEmpty(name))
+                return BadRequest();
+
+            IdentityResult result = await _userService.CreateRole(name);
+            if (result.Succeeded)
+            {
+                return StatusCode(StatusCodes.Status201Created, new { message = "Role Created!" });
+            }
+            else
+            {
+                return BadRequest(result.Errors);
             }
         }
     }

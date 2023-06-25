@@ -7,6 +7,7 @@
         public string Email { get; set; } = string.Empty;
         public string? ProfileImg { get; set; } = string.Empty;
         public bool? EmailConfirmed { get; set; }
+        public bool? TwoFactorEnabled { get; set; }
         public IList<string>? Roles { get; set; }
         public DateTime? CreatetAt { get; set; }
 

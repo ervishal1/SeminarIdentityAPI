@@ -160,6 +160,14 @@ namespace Identity1.Services
             }
         }
 
+        public async Task<IdentityResult> Enable2FA()
+        {
+            var httpUser = _httpContextAccessor.HttpContext?.User;
+            var user = await _userManager.GetUserAsync(httpUser);
+            var result = await _userManager.SetTwoFactorEnabledAsync(user, true);
+            return result;
+        }
+
         public async Task<SignInResult> VerifyTwoStepCode(TwoStepModel model)
         {
             try
@@ -182,6 +190,7 @@ namespace Identity1.Services
         public async Task LogoutAsync()
         {
             await _signInManager.SignOutAsync();
+            await _signInManager.ForgetTwoFactorClientAsync();
         }
 
         public async Task<List<ApplicationUserResponse>> GetUsersByRole(string role)
@@ -209,6 +218,7 @@ namespace Identity1.Services
                     Email = user.Email,
                     ProfileImg = user.ProfileImg,
                     EmailConfirmed = user.EmailConfirmed,
+                    TwoFactorEnabled = user.TwoFactorEnabled,
                     Roles = await GetUserRolesByEmail(user.Email),
                     CreatetAt = user.CreatedOn,       
                 };
@@ -290,6 +300,28 @@ namespace Identity1.Services
                 return result;
             }
             return IdentityResult.Failed();
+        }
+
+        public async Task<ApplicationUserResponse?> GetMeAsync()
+        {
+            var httpUser = _httpContextAccessor.HttpContext?.User;
+            var user = await _userManager.GetUserAsync(httpUser);
+            var result = new ApplicationUserResponse();
+            if(user != null)
+            {
+                result = new ApplicationUserResponse()
+                {
+                    Id = user.Id.ToString(),
+                    UserName = user.UserName,
+                    Email = user.Email,
+                    ProfileImg = user.ProfileImg,
+                    EmailConfirmed = user.EmailConfirmed,
+                    TwoFactorEnabled = user.TwoFactorEnabled,
+                    Roles = await GetUserRolesByEmail(user.Email),
+                    CreatetAt = user.CreatedOn
+                };
+            }
+            return result;
         }
     }
 }
